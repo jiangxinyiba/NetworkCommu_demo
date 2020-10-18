@@ -15,25 +15,23 @@ int main(int argc, char* argv[])
 	SOCKET			sClient;		    //Server Socket 
 	SOCKADDR_IN		servAddr;		    //Server Addr 
 	SOCKADDR_IN     clientAddr;         //Client Addr
-	SOCKADDR_IN     send_Data_Addr;     //the Addr that send the data(in this demo, send_Data_Addr = servAddr)
 	int				nAddrLen = sizeof(clientAddr);
 	int				nAddrLen_s = sizeof(servAddr);
 	char			bufSend[BUF_SIZE];	//the buffer area of data-send
 	char			bufRecv[BUF_SIZE];  //the buffer area of data-recv
 	int				retVal;			    //return value
+	char            str[INET_ADDRSTRLEN];
 	char*			closeSymbol = "0";  //symbol of close
 
     // Server Addr
 	servAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&servAddr.sin_addr.S_un.S_addr);
 	servAddr.sin_port = htons((short)5000);
-	int	nServAddlen = sizeof(servAddr);
 
 	// Client Addr
 	clientAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&clientAddr.sin_addr.S_un.S_addr);
 	clientAddr.sin_port = htons((short)4999);
-	int	nClientAddlen = sizeof(clientAddr);
 
 	// Initialize the dll of winsock
 	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
@@ -68,8 +66,7 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		cout << "Client UDP Socket bind IP & Port !" << endl;
-		char str[INET_ADDRSTRLEN];
+		cout << "Client TCP Socket bind IP & Port !" << endl;
 		cout << "Client Address = " << inet_ntop(AF_INET, &clientAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(clientAddr.sin_port) << endl;
 	}
 
@@ -94,7 +91,7 @@ int main(int argc, char* argv[])
 		ZeroMemory(bufSend, BUF_SIZE);
 
 		// Send the data from client socket to Server Socket
-		cout << "Data send to Server Socket: ";
+		cout << "Data send to   Server Socket [" << inet_ntop(AF_INET, &servAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(servAddr.sin_port) << "] : ";
 		cin >> bufSend;
 		retVal = send(sClient, bufSend, strlen(bufSend), 0);
 		if (SOCKET_ERROR == retVal)
@@ -115,12 +112,11 @@ int main(int argc, char* argv[])
 		// Receive data from server socket
 		retVal = recv(sClient, bufRecv, BUF_SIZE, 0);
 		bufRecv[retVal] = '\0';
-		cout << "Data recv from Server Socket: " << bufRecv << endl;
+		cout << "Data recv from Server Socket [" << inet_ntop(AF_INET, &servAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(servAddr.sin_port) << "] : " << bufRecv << endl;
 	}
 
 	closesocket(sClient);	 
 	WSACleanup();		
-
 	Sleep(5000);
 	return 0;
 }

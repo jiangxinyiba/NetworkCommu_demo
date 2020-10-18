@@ -14,23 +14,23 @@ int main(int argc, char* argv[])
 	SOCKADDR_IN		servAddr;		    //Server Addr
 	SOCKADDR_IN     clientAddr;         //Client Addr
 	SOCKADDR_IN     connect_Addr;       //the Addr that connect this socket (in this demo, connect_Addr = clientAddr)
-	int             connectClientlen;
+	int             connectClientlen = sizeof(connect_Addr);
 	char			bufSend[BUF_SIZE];	//the buffer area of data-send
 	char			bufRecv[BUF_SIZE];  //the buffer area of data-recv
 	int				retVal;			    //return value
 	char*			closeSymbol = "0";  //symbol of closing communication
+	char*           bufReq = "Request Reply";  // symbol of Request Reply
+	char            str[INET_ADDRSTRLEN];
 
     // Server Addr
 	servAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&servAddr.sin_addr.S_un.S_addr);
 	servAddr.sin_port = htons((short)5000);
-	int	nServAddlen = sizeof(servAddr);
 
 	// Client Addr
 	clientAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&clientAddr.sin_addr.S_un.S_addr);
 	clientAddr.sin_port = htons((short)4999);
-	int	nClientAddlen = sizeof(clientAddr);
 
 	// Initialize the dll of winsock
 	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
@@ -65,7 +65,6 @@ int main(int argc, char* argv[])
 	else
 	{
 		cout << "Server TCP Socket bind IP & Port !" << endl;
-		char str[INET_ADDRSTRLEN];
 		cout << "Server Address = " << inet_ntop(AF_INET, &servAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(servAddr.sin_port) << endl;
 	}
 
@@ -85,7 +84,6 @@ int main(int argc, char* argv[])
 	}
 
 	cout << "Server Socket is waiting accpetion !" << endl;
-	connectClientlen = sizeof(connect_Addr);
 	sClient = accept(sServer, (sockaddr FAR*)&connect_Addr, &connectClientlen);
 	if (INVALID_SOCKET == sClient)
 	{
@@ -97,9 +95,7 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		char str[INET_ADDRSTRLEN];
-		cout << "Server get connection with client socket!" << endl;
-		cout << "The Socket that connect Server TCP Socket: [" << inet_ntop(AF_INET, &connect_Addr.sin_addr, str, sizeof(str)) << ":" << ntohs(connect_Addr.sin_port) << "]" << endl;
+		cout << "Server get connection with client socket: [" << inet_ntop(AF_INET, &connect_Addr.sin_addr, str, sizeof(str)) << ":" << ntohs(connect_Addr.sin_port) << "]" << endl;
 	}
 
 	// loop for the data from the accpeted socket/send the data to the socket 
@@ -117,17 +113,19 @@ int main(int argc, char* argv[])
 
 		// Check the data from client 
 		bufRecv[retVal] = '\0';			// Set the last bit as \0 to avoid the wrong data  
-		cout << "Data recv from Client Socket: " << bufRecv << endl;
+		cout << "Data recv from Client Socket [" << inet_ntop(AF_INET, &connect_Addr.sin_addr, str, sizeof(str)) << ":" << ntohs(connect_Addr.sin_port) << "] : " << bufRecv << endl;
 		// When the data from client is ¡®0¡¯£¬exit the loop and finish TCP Communication
 		if (!strcmp(bufRecv, closeSymbol))
 		{
 			cout << "Client Socket wants to finish this communication" << endl;
+			closesocket(sServer);
+			WSACleanup();
+			Sleep(5000);
 			break;
 		}
 		else
 		{
 			// Automatically send the request reply to client  
-			char* bufReq  = "Request Reply";
 			send(sClient, bufReq, strlen(bufReq), 0);
 		}
 	}

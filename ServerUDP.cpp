@@ -1,105 +1,108 @@
 #include "winsock2.h"
 #include <WS2tcpip.h>
 #include <iostream>
+
 #pragma comment(lib, "ws2_32.lib")
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
 using namespace std;
 
 int main(int argc, char* argv[])
 {
 	const int BUF_SIZE = 64;
-	WSADATA			wsd;			    //WSADATA变量
-	SOCKET			sServer;		    //服务器套接字
-	SOCKET			sClient;		    //客户端套接字
-	SOCKADDR_IN		servAddr;		    //服务器地址
-	SOCKADDR_IN     clientAddr;         //客户端地址
-	int				nAddrLen = sizeof(clientAddr);
-	char			bufSend[BUF_SIZE];	//发送数据缓冲区
-	char			bufRecv[BUF_SIZE];  //接收数据缓冲区
-	int				retVal;			    //返回值
-	char*			closeSymbol = "0";  //结束通信的标志
-
-										// 服务端套接字地址 
-	servAddr.sin_family = AF_INET;        //协议
-	servAddr.sin_port = htons(4999);      //端口
+	WSADATA			wsd;			    //WSADATA Param
+	SOCKET			sServer;		    //Server Socket 
+	SOCKADDR_IN		servAddr;		    //Server Addr 
+	SOCKADDR_IN     clientAddr;         //Client Addr
+	SOCKADDR_IN     send_Data_Addr;     //the Addr that send the data(in this demo, send_Data_Addr = clientAddr)
+	int				nAddrLen_send = sizeof(send_Data_Addr);
+	char			bufSend[BUF_SIZE];	//send buffer
+	char			bufRecv[BUF_SIZE];  //receive buffer
+	int				retVal;			    //return value
+	char*			closeSymbol = "0";  //symbol of close
+	char*           bufReq = "Request Reply"; // symbol of Request Reply
+	char            str[INET_ADDRSTRLEN];
+	
+	// Server Addr
+	servAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&servAddr.sin_addr.S_un.S_addr);
+	servAddr.sin_port = htons((short)5000);
 
-	// 初始化套接字动态库	
+	// Client Addr
+	clientAddr.sin_family = AF_INET;
+	inet_pton(AF_INET, "127.0.0.1", (void*)&clientAddr.sin_addr.S_un.S_addr);
+	clientAddr.sin_port = htons((short)4999);
+
+	// Initialize the socket of dll
 	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
 	{
 		cout << "WSAStartup failed !" << endl;
 		return 1;
 	}
 
-	// 创建服务端套接字
+	// Create server socket 
 	sServer = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (INVALID_SOCKET == sServer)
 	{
 		cout << "socket failed!" << endl;
-		WSACleanup();			 //释放套接字资源;
+		WSACleanup();	 
 		return  -1;
 	}
 	else
 	{
 		cout << "Server UDP Socket init!" << endl;
-		cout << "Server UDP Socket IP: 127.0.0.1" << endl;
-		cout << "Server UDP Socket Port: 4999" << endl;
 	}
 
-	// 套接字绑定IP和端口
-	if (SOCKET_ERROR == bind(sServer, (LPSOCKADDR)&servAddr, sizeof(SOCKADDR_IN)))
+	// Bind the socket with IP and Port 
+	retVal = bind(sServer, (LPSOCKADDR)&servAddr, sizeof(SOCKADDR_IN));
+	if (SOCKET_ERROR == retVal)
 	{
 		cout << "bind failed!" << endl;
-		closesocket(sServer);	//关闭服务端套接字
-		WSACleanup();			//释放套接字资源;
+		closesocket(sServer);	 
+		WSACleanup();			 
 		return -1;
 	}
 	else
 	{
 		cout << "Server UDP Socket bind IP & Port !" << endl;
+		cout << "Server Address = " << inet_ntop(AF_INET, &servAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(servAddr.sin_port) << endl;
 	}
 
-	// 循环等待其他端口发送数据，从客户端接收数据 & 向客户端发送数据
+	// loop - receive the request from the client socket / send the reply to the client socket
 	while (true) {
-		// 初始化缓冲空间
+		// Initialize the buffer
 		ZeroMemory(bufRecv, BUF_SIZE);
 
-		// 接收客户端发送的buf信息
-		retVal = recvfrom(sServer, bufRecv, BUF_SIZE, 0, (sockaddr *)&clientAddr, &nAddrLen);
+		// Server socket receive request from send_Data_Addr(clientAddr) 
+		retVal = recvfrom(sServer, bufRecv, BUF_SIZE, 0, (sockaddr *)&send_Data_Addr, &nAddrLen_send);
 		if (SOCKET_ERROR == retVal)
-		{// 接收失败则关闭服务端客户端套接字
+		{
 			cout << "Recv Failed!" << endl;
-			closesocket(sServer);	//关闭服务端套接字
-			WSACleanup();			//释放套接字资源;
+			closesocket(sServer);
+			WSACleanup();
+			Sleep(5000);
 			return -1;
 		}
-
-		// 确认客户端发送的信息
-		bufRecv[retVal] = '\0';			// 接收的最后一位设为\0，避免烫烫的问题
-		char str[INET_ADDRSTRLEN];
-		cout << "Client IP：" << inet_ntop(AF_INET, &clientAddr.sin_addr, str, sizeof(str)) << endl;
-		cout << "Data recv from Client UDP Socket: " << bufRecv << endl;
-
-		// 若客户端发送的数据是'0'，则表示客户端想结束此次TCP通信		
+		
+		// Check the data from client 
+		bufRecv[retVal] = '\0';			// Set the last bit as \0 to avoid the wrong data  
+		cout << "Data recv from Client Socket[" << inet_ntop(AF_INET, &send_Data_Addr.sin_addr, str, sizeof(str)) << ":" << ntohs(send_Data_Addr.sin_port) << "] : " << bufRecv << endl;
+		// When the data from another socket is ‘0’，exit the loop and finish UDP Communication
 		if (!strcmp(bufRecv, closeSymbol))
 		{
 			cout << "Client UDP Socket wants to finish this communication" << endl;
+			closesocket(sServer);
+			WSACleanup();
+			Sleep(5000);
 			break;
 		}
-
-		// 将sendBuf信息发送到客户端
-		cout << "Data send to Client UDP Socket: ";
-		cin >> bufSend;
-		sendto(sServer, bufSend, strlen(bufSend), 0, (sockaddr *)&clientAddr, nAddrLen);
-		// 若服务端发送的数据是'0'，则表示服务端想结束此次TCP通信	
-		if (!strcmp(bufSend, closeSymbol))
+		else
 		{
-			cout << "Server UDP Socket wants to finish this communication" << endl;
-			break;
-		}
+			// Automatically send the request reply to client  
+			sendto(sServer, bufReq, strlen(bufReq), 0, (sockaddr *)&send_Data_Addr, nAddrLen_send);
+		}		
 	}
-	// 退出
-	closesocket(sServer);	//关闭服务端套接字
-	WSACleanup();			//释放套接字资源;
-	Sleep(5000);
+ 
 	return 0;
 }
