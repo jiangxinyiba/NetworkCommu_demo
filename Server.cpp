@@ -1,67 +1,76 @@
 #include "winsock2.h"
 #include <WS2tcpip.h>
 #include <iostream>
-#pragma comment(lib, "ws2_32.lib")
+ 
+#pragma comment(lib, "ws2_32.lib") // load the dll of winsock
 using namespace std;
 
 int main(int argc, char* argv[])
 {
 	const int BUF_SIZE = 64;
-	WSADATA			wsd;			    //WSADATA变量
-	SOCKET			sServer;		    //服务器套接字
-	SOCKET			sClient;		    //客户端套接字
-	SOCKADDR_IN		servAddr;		    //服务器地址
-	SOCKADDR_IN     clientAddr;         //客户端地址
-	char			bufSend[BUF_SIZE];	//发送数据缓冲区
-	char			bufRecv[BUF_SIZE];  //接收数据缓冲区
-	int				retVal;			    //返回值
-	char*			closeSymbol = "0";  //结束通信的标志
+	WSADATA			wsd;			    //WSADATA PARAM
+	SOCKET			sServer;		    //Server Socket
+	SOCKET			sClient;		    //Client Socket
+	SOCKADDR_IN		servAddr;		    //Server Addr
+	SOCKADDR_IN     clientAddr;         //Client Addr
+	SOCKADDR_IN     connect_Addr;       //the Addr that connect this socket (in this demo, connect_Addr = clientAddr)
+	int             connectClientlen;
+	char			bufSend[BUF_SIZE];	//the buffer area of data-send
+	char			bufRecv[BUF_SIZE];  //the buffer area of data-recv
+	int				retVal;			    //return value
+	char*			closeSymbol = "0";  //symbol of closing communication
 
-	// 服务端套接字地址 
-	servAddr.sin_family = AF_INET;        //协议
-	servAddr.sin_port = htons(4999);      //端口
-	//servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");		  //INADDR_ANY
+    // Server Addr
+	servAddr.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", (void*)&servAddr.sin_addr.S_un.S_addr);
+	servAddr.sin_port = htons((short)5000);
+	int	nServAddlen = sizeof(servAddr);
 
-	// 初始化套接字动态库	
+	// Client Addr
+	clientAddr.sin_family = AF_INET;
+	inet_pton(AF_INET, "127.0.0.1", (void*)&clientAddr.sin_addr.S_un.S_addr);
+	clientAddr.sin_port = htons((short)4999);
+	int	nClientAddlen = sizeof(clientAddr);
+
+	// Initialize the dll of winsock
 	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
 	{
 		cout << "WSAStartup failed !" << endl;
 		return 1;
 	}
 
-	// 创建服务端套接字
+	// Create the Server socket 
 	sServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (INVALID_SOCKET == sServer)
 	{
 		cout << "socket failed!" << endl;
-		WSACleanup();			 //释放套接字资源;
+		WSACleanup();			 
 		return  -1;
 	}
 	else
 	{
-		cout << "Server Socket init!" << endl;
-		cout << "Server Socket IP: 127.0.0.1" << endl;
-		cout << "Server Socket Port: 4999" << endl;
+		cout << "Server TCP Socket init!" << endl;
 	}
 
-	// 套接字绑定IP和端口
-	
+	// Bind the IP and Port on Server Socket 
 	retVal = bind(sServer, (LPSOCKADDR)&servAddr, sizeof(SOCKADDR_IN));
 	if (SOCKET_ERROR == retVal)
 	{
 		cout << "bind failed!" << endl;
-		closesocket(sServer);	//关闭服务端套接字
-		WSACleanup();			//释放套接字资源;
+		closesocket(sServer);
+		WSACleanup();
+		Sleep(5000);
 		return -1;
 	}
 	else
 	{
-		cout << "Server Socket bind IP & Port !" << endl;
+		cout << "Server TCP Socket bind IP & Port !" << endl;
+		char str[INET_ADDRSTRLEN];
+		cout << "Server Address = " << inet_ntop(AF_INET, &servAddr.sin_addr, str, sizeof(str)) << ":" << ntohs(servAddr.sin_port) << endl;
 	}
 
-	// 开始监听当前套接字端口是否有数据
-	retVal = listen(sServer, 1);
+	// Listen the Server socket 
+	retVal = listen(sServer, 10);
 	if (0 == retVal)
 	{
 		cout << "Server Socket is listening !" << endl;
@@ -69,71 +78,62 @@ int main(int argc, char* argv[])
 	else if (SOCKET_ERROR == retVal)
 	{
 		cout << "listen failed!" << endl;
-		closesocket(sServer);	//关闭服务端套接字
-		WSACleanup();			//释放套接字资源;
+		closesocket(sServer);	 
+		WSACleanup();	
+		Sleep(5000);
 		return -1;
 	}
-	else
-	{
-		cout << "One Client Socket is connecting !" << endl;
-		
-	}
 
-	// 如果客户端发送请求，则接受客户端，开始从该客户端读取数据
 	cout << "Server Socket is waiting accpetion !" << endl;
-	int addrClientlen = sizeof(clientAddr);
-	sClient = accept(sServer, (sockaddr FAR*)&clientAddr, &addrClientlen);
+	connectClientlen = sizeof(connect_Addr);
+	sClient = accept(sServer, (sockaddr FAR*)&connect_Addr, &connectClientlen);
 	if (INVALID_SOCKET == sClient)
 	{
 		cout << "accept failed!" << endl;
-		closesocket(sServer);	//关闭服务端套接字
-		WSACleanup();			//释放套接字资源;
+		closesocket(sServer);	
+		WSACleanup();
+		Sleep(5000);
 		return -1;
 	}
 	else
 	{
-		cout << "Two Sockets are ready for communication !" << endl;
+		char str[INET_ADDRSTRLEN];
+		cout << "Server get connection with client socket!" << endl;
+		cout << "The Socket that connect Server TCP Socket: [" << inet_ntop(AF_INET, &connect_Addr.sin_addr, str, sizeof(str)) << ":" << ntohs(connect_Addr.sin_port) << "]" << endl;
 	}
 
-	// 循环等待accept的端口发送数据，从客户端接收数据 & 向客户端发送数据
-	while (true) {
-		// 初始化缓冲空间
+	// loop for the data from the accpeted socket/send the data to the socket 
+	while (TRUE) 
+	{
+		// Initialize the buffer 
 		ZeroMemory(bufRecv, BUF_SIZE);
 
-		// 接收客户端发送的buf信息
+		// Recevice the buffer data from the client 
 		retVal = recv(sClient, bufRecv, BUF_SIZE, 0);
 		if (SOCKET_ERROR == retVal)
-		{// 接收失败则关闭服务端客户端套接字
-			cout << "recv failed!" << endl;
-			closesocket(sServer);	//关闭服务端套接字
-			WSACleanup();			//释放套接字资源;
-			return -1;
+		{
+			continue;
 		}
-			
-		// 确认客户端发送的信息
-		bufRecv[retVal] = '\0';			// 接收的最后一位设为\0，避免烫烫的问题
+
+		// Check the data from client 
+		bufRecv[retVal] = '\0';			// Set the last bit as \0 to avoid the wrong data  
 		cout << "Data recv from Client Socket: " << bufRecv << endl;
-		// 若客户端发送的数据是'0'，则表示客户端想结束此次TCP通信		
+		// When the data from client is ‘0’，exit the loop and finish TCP Communication
 		if (!strcmp(bufRecv, closeSymbol))
 		{
 			cout << "Client Socket wants to finish this communication" << endl;
 			break;
 		}
-
-		// 将sendBuf信息发送到客户端
-		cout << "Data send to Client Socket: ";
-		cin >> bufSend;
-		send(sClient, bufSend, strlen(bufSend), 0);
-		// 若服务端发送的数据是'0'，则表示服务端想结束此次TCP通信	
-		if (!strcmp(bufSend, closeSymbol))
+		else
 		{
-			cout << "Server Socket wants to finish this communication" << endl;
-			break;
+			// Automatically send the request reply to client  
+			char* bufReq  = "Request Reply";
+			send(sClient, bufReq, strlen(bufReq), 0);
 		}
 	}
-	// 退出
-	closesocket(sServer);	//关闭服务端套接字
-	WSACleanup();			//释放套接字资源;
+	// Exit
+	closesocket(sServer);	 
+	WSACleanup();			 
 	Sleep(5000);
 	return 0;
 }
